@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>巡回ボード｜急変観察シミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F6F7; --surface:#FFFFFF; --ink:#1C2A38; --muted:#5C6977; --line:#D8E0E5; --soft:#E9EFF2;
+  --air:#2F78A3; --blood:#B0303A; --warn:#8A5300; --warnbg:#FBEFD9; --alert:#A3262F; --alertbg:#F9E1E3; --ok:#2D6E52; --okbg:#DFF0E7;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11171C; --surface:#19222A; --ink:#E4EBF0; --muted:#9AA8B4; --line:#2B3843; --soft:#202B35;
+    --air:#79B5D8; --blood:#E7818A; --warn:#E3B062; --warnbg:#3A2E18; --alert:#F0959C; --alertbg:#3D1F23; --ok:#7FC4A3; --okbg:#1C3529;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11171C; --surface:#19222A; --ink:#E4EBF0; --muted:#9AA8B4; --line:#2B3843; --soft:#202B35;
+  --air:#79B5D8; --blood:#E7818A; --warn:#E3B062; --warnbg:#3A2E18; --alert:#F0959C; --alertbg:#3D1F23; --ok:#7FC4A3; --okbg:#1C3529;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;line-height:1.55}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--air);outline-offset:2px}
+.wrap{max-width:1280px;margin:0 auto;padding:0 16px}
+.btn{border:0;border-radius:10px;padding:9px 14px;background:var(--ink);color:var(--surface);font-weight:700}
+.btn.quiet{background:var(--soft);color:var(--ink)}
+.login{max-width:380px;margin:80px auto;padding:0 16px}
+.login h1{font-size:1.4rem;margin:0 0 16px}
+.login input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);margin-bottom:12px}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
+.hd{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:12px 0}
+.hd h1{font-size:1.1rem;margin:0}
+.meta{color:var(--muted);font-size:.85rem}
+.counts{display:flex;gap:14px;flex-wrap:wrap;margin-left:auto}
+.counts div{font-size:.85rem;color:var(--muted)}
+.counts b{font-size:1.4rem;color:var(--ink);margin-right:3px}
+.counts .al b{color:var(--alert)}
+.ctrl{display:flex;gap:8px;align-items:center;padding:0 0 12px;flex-wrap:wrap}
+.ctrl label{display:flex;gap:6px;align-items:center;font-size:.9rem}
+.tabs{display:flex;gap:4px;margin-right:8px}
+.tab{border:1.5px solid var(--ink);background:transparent;border-radius:8px;padding:6px 14px;font-weight:700}
+.tab.on{background:var(--ink);color:var(--surface)}
+
+/* クラス全体の酸素の旅 */
+.journey{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:16px 0}
+.jc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.jc b{display:block;font-size:.85rem}
+.jc .n{font-size:1.6rem;font-weight:700;line-height:1.2}
+.jc .bar{height:5px;border-radius:3px;background:var(--soft);margin-top:6px;overflow:hidden}
+.jc .bar i{display:block;height:100%;background:var(--air)}
+.jc.b .bar i{background:var(--blood)}
+.jc.m .bar i{background:var(--muted)}
+.jnote{color:var(--muted);font-size:.82rem;margin:-6px 0 14px}
+
+.groups{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;padding-bottom:40px}
+.g{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.g h2{margin:0;font-size:1rem;padding:10px 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.g h2 span{color:var(--muted);font-size:.82rem;font-weight:400}
+.st{padding:9px 12px;border-bottom:1px solid var(--line)}
+.st:last-child{border-bottom:0}
+.st.need{background:var(--alertbg)}
+.st summary{list-style:none;cursor:pointer}
+.st summary::-webkit-details-marker{display:none}
+.l1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sid{font-weight:700;min-width:3.2em}
+.chip{font-size:.75rem;border-radius:999px;padding:1px 8px;font-weight:700}
+.chip.alert{background:var(--alert);color:var(--surface)}
+.chip.warn{background:var(--warnbg);color:var(--warn)}
+.chip.done{background:var(--okbg);color:var(--ok)}
+.l2{color:var(--muted);font-size:.8rem;margin-top:2px}
+.hl{margin:8px 0 2px;padding:0;list-style:none;font-size:.85rem}
+.hl li{padding:2px 0}
+.hl .no{text-decoration:line-through;color:var(--muted)}
+.hl small{color:var(--muted)}
+.empty{color:var(--muted);padding:40px 0;text-align:center}
+.err{color:var(--alert);font-size:.85rem}
+@media (max-width:700px){ .journey{grid-template-columns:repeat(3,minmax(0,1fr))} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ▼ 学生用画面と同じ中継サーバーのURLに書き換える
+const WORKER_URL = 'https://kyusei-sim.dossiritositasaru.workers.dev';
+
+const STAGES = { intake:'①取り込む', transfer:'②渡す', carry:'③運ぶ', use:'④使う', unknown:'まだわからない' };
+const STATUS = { checking:'確かめ中', stronger:'強まった', denied:'否定した' };
+const IDLE_SEC = 180;
+
+let T = ''; try { T = sessionStorage.getItem('kyusei-t') || ''; } catch(e){}
+let data = null, onlyNeed = false, lastErr = '', timer = null;
+let CLS = ''; try { CLS = sessionStorage.getItem('kyusei-cls') || ''; } catch(e){}
+const open = new Set();
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function post(path){
+  const r = await fetch(WORKER_URL + path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ t:T, cls:CLS }) });
+  if (!r.ok) { let d = {}; try { d = await r.json(); } catch(e){} throw new Error(d.error || ('通信エラー ' + r.status)); }
+  return r;
+}
+
+async function load(){
+  try { data = await (await post('/api/dashboard')).json(); CLS = data.cls; lastErr = ''; }
+  catch(e){ lastErr = e.message; if (/教員コード/.test(e.message)) { T = ''; try{ sessionStorage.removeItem('kyusei-t'); }catch(_){} stop(); } }
+  render();
+}
+function start(){ stop(); load(); timer = setInterval(load, 8000); }
+function stop(){ if (timer) clearInterval(timer); timer = null; }
+
+function flags(st, now){
+  if (st.finished) return [{ k:'done', t:'終了' }];
+  const f = [];
+  const idle = (now - st.last_ts) / 1000;
+  const hy = st.hyps || [];
+  const active = hy.filter(h => h.status !== 'denied');
+  if (idle > IDLE_SEC) f.push({ k:'alert', t:'止まっている ' + Math.floor(idle/60) + '分' });
+  if (st.turns >= 3 && active.length <= 1) f.push({ k:'alert', t:'仮説が1つ以下' });
+  if (st.asks >= 3) f.push({ k:'warn', t:'問い返し ' + st.asks + '回' });
+  if (st.turns >= 6 && !hy.some(h => h.status === 'denied')) f.push({ k:'warn', t:'否定の動きなし' });
+  return f;
+}
+function score(fl){ return fl.reduce((a,f) => a + (f.k === 'alert' ? 10 : f.k === 'warn' ? 3 : f.k === 'done' ? -5 : 0), 0); }
+function ago(ms){ const s = Math.max(0, Math.floor(ms/1000)); return s < 60 ? s + '秒前' : Math.floor(s/60) + '分前'; }
+
+function render(){
+  const app = document.getElementById('app');
+  if (!T) {
+    app.innerHTML = `<div class="login"><h1>巡回ボード</h1>
+      <form id="lf"><input id="tc" type="password" placeholder="教員コード" autocomplete="off"><button class="btn">開く</button></form>
+      ${lastErr ? `<p class="err">${esc(lastErr)}</p>` : ''}</div>`;
+    return;
+  }
+  if (!data) { app.innerHTML = `<div class="wrap empty">読み込んでいます…${lastErr ? `<p class="err">${esc(lastErr)}</p>` : ''}</div>`; return; }
+
+  const now = data.now;
+  const sts = data.students.map(s => { const fl = flags(s, now); return { ...s, fl, sc:score(fl) }; });
+  const need = sts.filter(s => s.fl.some(f => f.k === 'alert')).length;
+  const done = sts.filter(s => s.finished).length;
+
+  // クラス全体の仮説の分布
+  const cnt = { intake:0, transfer:0, carry:0, use:0, unknown:0, denied:0 };
+  sts.forEach(s => (s.hyps||[]).forEach(h => { if (h.status === 'denied') cnt.denied++; else cnt[h.stage] = (cnt[h.stage]||0) + 1; }));
+  const total = Object.values(cnt).reduce((a,b) => a+b, 0) || 1;
+  const withStage = k => sts.filter(s => (s.hyps||[]).some(h => h.stage === k && h.status !== 'denied')).length;
+  const jc = (k, label, cls) => `<div class="jc ${cls}"><b>${label}</b><div class="n">${cnt[k]}</div>
+    <div class="bar"><i style="width:${Math.round(cnt[k]/total*100)}%"></i></div></div>`;
+
+  const groups = {};
+  sts.forEach(s => { (groups[s.grp] = groups[s.grp] || []).push(s); });
+  const gHTML = Object.keys(groups).sort((a,b) => a - b).map(g => {
+    let list = groups[g].sort((a,b) => b.sc - a.sc || a.sid - b.sid);
+    if (onlyNeed) list = list.filter(s => s.fl.some(f => f.k === 'alert' || f.k === 'warn'));
+    if (!list.length) return '';
+    const gNeed = groups[g].filter(s => s.fl.some(f => f.k === 'alert')).length;
+    return `<section class="g"><h2>${esc(g)}班<span>${groups[g].length}人${gNeed ? `・要注意${gNeed}` : ''}</span></h2>` +
+      list.map(s => {
+        const hy = s.hyps || [];
+        const key = s.sid;
+        return `<details class="st ${s.fl.some(f=>f.k==='alert') ? 'need' : ''}" data-sid="${esc(key)}" ${open.has(key) ? 'open' : ''}>
+          <summary><div class="l1"><span class="sid">${esc(s.sid)}番</span>${s.fl.map(f => `<span class="chip ${f.k}">${esc(f.t)}</span>`).join('')}</div>
+          <div class="l2">観察${s.turns}・仮説${hy.filter(h=>h.status!=='denied').length}（否定${hy.filter(h=>h.status==='denied').length}）・問い返し${s.asks}・最終操作 ${ago(now - s.last_ts)}</div></summary>
+          <ul class="hl">${hy.map(h => `<li class="${h.status==='denied'?'no':''}">${esc(h.text)} <small>${STAGES[h.stage]||''}／${STATUS[h.status]||''}</small></li>`).join('') || '<li><small>仮説なし</small></li>'}</ul>
+        </details>`;
+      }).join('') + `</section>`;
+  }).join('');
+
+  app.innerHTML = `<header><div class="wrap">
+      <div class="hd"><h1>巡回ボード ${esc(data.cls)}クラス</h1><span class="meta">${esc(data.session)}・${new Date(now).toLocaleTimeString('ja-JP')} 更新（8秒ごと）</span>
+        <div class="counts"><div><b>${sts.length}</b>参加</div><div class="al"><b>${need}</b>要注意</div><div><b>${done}</b>終了</div></div></div>
+      <div class="ctrl"><div class="tabs">${(data.classes||[]).map(c => `<button class="tab ${c===data.cls?'on':''}" data-cls="${esc(c)}">${esc(c)}クラス</button>`).join('')}</div><label><input type="checkbox" id="only" ${onlyNeed ? 'checked' : ''}>声かけが必要な学生だけ表示</label>
+        <button class="btn quiet" id="csv">記録をCSVで保存</button>${lastErr ? `<span class="err">${esc(lastErr)}</span>` : ''}</div>
+    </div></header>
+    <main class="wrap">
+      <div class="journey">
+        ${jc('intake','①取り込む','')}${jc('transfer','②渡す','')}${jc('carry','③運ぶ','b')}${jc('use','④使う','b')}${jc('unknown','まだわからない','m')}${jc('denied','否定した','m')}
+      </div>
+      <p class="jnote">クラス全体で今メモされている仮説の数。②渡す を考えている学生は ${withStage('transfer')}人、③運ぶ は ${withStage('carry')}人。</p>
+      ${gHTML || '<p class="empty">まだ参加者がいません。学生が「演習を始める」を押すと、ここに表示されます。</p>'}
+    </main>`;
+}
+
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.id === 'lf') { T = document.getElementById('tc').value.trim(); try { sessionStorage.setItem('kyusei-t', T); } catch(_){} data = null; start(); render(); }
+});
+document.addEventListener('change', e => { if (e.target.id === 'only') { onlyNeed = e.target.checked; render(); } });
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!d.dataset || !d.dataset.sid) return;
+  if (d.open) open.add(d.dataset.sid); else open.delete(d.dataset.sid);
+}, true);
+document.addEventListener('click', async e => {
+  const tab = e.target.closest('[data-cls]');
+  if (tab) { CLS = tab.dataset.cls; try { sessionStorage.setItem('kyusei-cls', CLS); } catch(_){} open.clear(); data = null; render(); load(); return; }
+  if (e.target.id !== 'csv') return;
+  try {
+    const blob = await (await post('/api/export')).blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'kyusei-log-' + (data ? data.session + '-' + data.cls : '') + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch(err){ alert(err.message); }
+});
+
+render();
+if (T) start();
+</script>
+</body>
+</html>
