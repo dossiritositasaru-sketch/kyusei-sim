@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>急変観察シミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F6F7; --surface:#FFFFFF; --ink:#1C2A38; --muted:#5C6977; --line:#D8E0E5; --soft:#E9EFF2;
+  --air:#2F78A3; --blood:#B0303A; --warn:#8A5300; --ok:#2D6E52;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11171C; --surface:#19222A; --ink:#E4EBF0; --muted:#9AA8B4; --line:#2B3843; --soft:#202B35;
+    --air:#79B5D8; --blood:#E7818A; --warn:#E3B062; --ok:#7FC4A3;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11171C; --surface:#19222A; --ink:#E4EBF0; --muted:#9AA8B4; --line:#2B3843; --soft:#202B35;
+  --air:#79B5D8; --blood:#E7818A; --warn:#E3B062; --ok:#7FC4A3;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"BIZ UDPGothic","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;font-size:16px;line-height:1.65;
+  -webkit-text-size-adjust:100%}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--air);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding:0 16px}
+
+/* 参加画面 */
+.join{padding:48px 0 32px}
+.join h1{font-size:1.6rem;line-height:1.35;margin:0 0 6px}
+.join .lead{color:var(--muted);margin:0 0 28px}
+.field{display:block;margin-bottom:16px}
+.field span{display:block;font-weight:700;margin-bottom:6px}
+.field input,.field textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.field textarea{resize:vertical;min-height:72px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.note{color:var(--muted);font-size:.88rem}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:10px;
+  padding:12px 18px;background:var(--ink);color:var(--surface);font-weight:700;min-height:46px}
+.btn[disabled]{opacity:.55;cursor:default}
+.btn.full{width:100%}
+.btn.line{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+.btn.quiet{background:var(--soft);color:var(--ink)}
+
+/* 上部 */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding-top:10px;padding-bottom:4px}
+.pt strong{font-size:1rem}
+.pt span{color:var(--muted);font-size:.85rem;margin-left:8px}
+.who{color:var(--muted);font-size:.85rem;white-space:nowrap}
+
+/* 酸素の旅 */
+.journey{position:relative;display:grid;grid-template-columns:repeat(4,1fr);padding:6px 0 10px}
+.journey::before{content:"";position:absolute;left:12.5%;right:12.5%;top:17px;height:3px;border-radius:2px;
+  background:linear-gradient(90deg,var(--air),var(--air) 40%,var(--blood) 60%,var(--blood))}
+.stage{position:relative;text-align:center;padding:0 2px}
+.node{width:16px;height:16px;border-radius:50%;margin:3px auto 4px;background:var(--surface);border:3px solid var(--air)}
+.stage:nth-child(n+3) .node{border-color:var(--blood)}
+.stage.has .node{background:var(--air)}
+.stage:nth-child(n+3).has .node{background:var(--blood)}
+.stage b{display:block;font-size:.82rem;line-height:1.2}
+.stage small{display:block;color:var(--muted);font-size:.7rem;line-height:1.2}
+.dots{display:flex;justify-content:center;gap:3px;min-height:9px;margin-top:4px;flex-wrap:wrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ink)}
+.dot.no{background:transparent;border:1.5px solid var(--muted)}
+
+.toolbar{display:flex;gap:8px;padding:8px 0 10px}
+.toolbar .btn{flex:1;padding:8px 10px;min-height:40px;font-size:.92rem}
+
+/* 記録 */
+.log{padding:14px 0 8px}
+.case{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--ink);border-radius:10px;padding:14px 14px 12px;margin-bottom:18px}
+.case h2{font-size:1.05rem;margin:0 0 6px}
+.case p{margin:0 0 6px}
+.case .task{font-weight:700;margin-top:10px}
+.req{margin:0 0 10px auto;max-width:88%;background:var(--soft);border-radius:12px 12px 2px 12px;padding:10px 12px}
+.req .k,.res .k{font-size:.75rem;color:var(--muted);font-weight:700}
+.req p,.res p{margin:0 0 4px;white-space:pre-wrap;word-break:break-word}
+.res{margin:0 0 16px;max-width:92%;background:var(--surface);border:1px solid var(--line);border-radius:12px 12px 12px 2px;padding:10px 12px}
+.res.finding{border-left:4px solid var(--air)}
+.res.patient{border-left:4px solid var(--ok)}
+.res.patient p::before{content:"「"} .res.patient p::after{content:"」"}
+.res.ask_reason{border-left:4px solid var(--warn)}
+.res.ask_reason p{font-weight:700}
+.res.redirect{background:transparent;border-style:dashed}
+.pending{color:var(--muted);font-size:.92rem;padding:4px 0 16px}
+
+/* 入力欄 */
+.composer{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);
+  padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.composer label{display:block;font-size:.8rem;font-weight:700;color:var(--muted);margin:0 0 3px}
+.composer textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);
+  resize:none;min-height:44px;margin-bottom:8px;font-size:16px}
+.composer .btn{width:100%}
+
+/* シート */
+.veil{position:fixed;inset:0;background:rgba(10,18,26,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:88%;overflow:auto;border-radius:16px 16px 0 0;
+  padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sheet-head h2{margin:0;font-size:1.15rem}
+.x{border:0;background:var(--soft);border-radius:8px;padding:6px 12px}
+.hint{color:var(--muted);font-size:.88rem;margin:0 0 12px}
+.add{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+.add input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-bottom:10px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.seg button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:5px 11px;font-size:.85rem}
+.seg button.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.hyps{list-style:none;margin:0;padding:0}
+.hyps li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.hyps li.denied .ht{text-decoration:line-through;color:var(--muted)}
+.ht{font-weight:700;margin-bottom:8px;word-break:break-word}
+.hrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hrow select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:.85rem}
+.del{border:0;background:none;color:var(--muted);font-size:.82rem;margin-left:auto;text-decoration:underline}
+.empty{color:var(--muted);background:transparent!important;border-style:dashed!important}
+
+/* 振り返り */
+.fb{padding:22px 0 40px}
+.fb h1{font-size:1.35rem;margin:0 0 14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.box h2{font-size:.95rem;margin:0 0 8px}
+.box p{margin:0 0 6px;white-space:pre-wrap;word-break:break-word}
+.fbtext{white-space:pre-wrap;word-break:break-word;margin:0}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:10px;z-index:40;max-width:90%;font-size:.92rem}
+@media (prefers-reduced-motion: no-preference){ .sheet{animation:up .2s ease-out} @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}} }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="layer"></div>
+
+<script>
+// ▼ ここを中継サーバー（Cloudflare Worker）のURLに書き換える（最後の / は付けない）
+const WORKER_URL = 'https://kyusei-sim.dossiritositasaru.workers.dev';
+
+const KEY = 'kyusei5-v1';
+const STAGES = [
+  ['intake','取り込む','換気'], ['transfer','渡す','酸素化'], ['carry','運ぶ','循環'], ['use','使う','細胞'], ['unknown','まだわからない','']
+];
+const STATUS = [['checking','確かめ中'], ['stronger','強まった'], ['denied','否定した']];
+const RES_LABEL = { finding:'観察の結果', patient:'', ask_reason:'問い返し', redirect:'ひとこと' };
+
+let S = load();
+let newStage = 'unknown';
+let syncTimer = null;
+
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function cred(){ return { code:S.code, grp:S.grp, sid:S.sid }; }
+
+async function api(path, body){
+  let r;
+  try {
+    r = await fetch(WORKER_URL + path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  } catch(e){ throw new Error('通信できませんでした。電波を確認して、もう一度送ってください'); }
+  let d = {};
+  try { d = await r.json(); } catch(e){}
+  if (!r.ok) throw new Error(d.error || ('通信に失敗しました（' + r.status + '）'));
+  return d;
+}
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg; t.setAttribute('role','status');
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+// ---------- 画面 ----------
+function render(){
+  const app = document.getElementById('app');
+  if (!S.joined) app.innerHTML = joinView();
+  else if (S.feedback) app.innerHTML = feedbackView();
+  else app.innerHTML = mainView();
+}
+
+function joinView(){
+  return `<div class="wrap join">
+    <h1>急変観察シミュレーター</h1>
+    <p class="lead">患者さんの体で何が起きているのか、観察を重ねて確かめていく演習です。</p>
+    <form id="joinForm">
+      <label class="field"><span>クラスコード（スクリーンに出ているもの）</span><input id="code" autocomplete="off" required></label>
+      <div class="row2">
+        <label class="field"><span>班</span><input id="grp" inputmode="numeric" pattern="[0-9]*" maxlength="2" required></label>
+        <label class="field"><span>出席番号</span><input id="sid" inputmode="numeric" pattern="[0-9]*" maxlength="4" required></label>
+      </div>
+      <button class="btn full" id="joinBtn">演習を始める</button>
+      <p class="note">名前は入力しません。記録は班と出席番号で残ります。</p>
+    </form>
+  </div>`;
+}
+
+function journeyHTML(){
+  return `<div class="journey" aria-label="酸素の旅と、あなたの仮説の数">` + STAGES.slice(0,4).map(([k,label,sub]) => {
+    const hs = (S.hyps||[]).filter(h => h.stage === k);
+    const active = hs.filter(h => h.status !== 'denied').length;
+    const dots = hs.map(h => `<i class="dot ${h.status==='denied'?'no':''}"></i>`).join('');
+    return `<div class="stage ${active ? 'has' : ''}"><div class="node"></div><b>${label}</b><small>${sub}</small><div class="dots">${dots}</div></div>`;
+  }).join('') + `</div>`;
+}
+
+function mainView(){
+  const n = (S.hyps||[]).filter(h => h.status !== 'denied').length;
+  return `<header class="top"><div class="wrap">
+      <div class="pt"><strong>${esc(S.intro.short)}</strong><span>${esc(S.intro.tag)}</span></div>
+      <div class="who">${esc(S.cls || '')}クラス ${esc(S.grp)}班・${esc(S.sid)}番</div>
+    </div>
+    <div class="wrap">${journeyHTML()}
+      <div class="toolbar">
+        <button class="btn quiet" data-act="hyps">仮説メモ（${n}）</button>
+        <button class="btn line" data-act="finish">報告して終える</button>
+      </div>
+    </div>
+  </header>
+  <main class="wrap log" id="log">
+    <section class="case">
+      <h2>${esc(S.intro.name)}</h2>
+      ${S.intro.lines.map(l => `<p>${esc(l)}</p>`).join('')}
+      <p class="task">${esc(S.intro.task)}</p>
+      <p class="note">観察したいことと、その理由（どの仮説を確かめたいか）をセットで送ります。理由がないと、問い返されます。</p>
+    </section>
+    ${(S.log||[]).map(entryHTML).join('')}
+    ${S.busy ? `<div class="pending" role="status">${esc(S.intro.short)}を観察しています…</div>` : ''}
+  </main>
+  <form class="composer" id="composer"><div class="wrap">
+    <label for="obs">観察すること</label>
+    <textarea id="obs" rows="1" maxlength="300" placeholder="例：呼吸音を左右で聴く">${esc(S.draft.obs)}</textarea>
+    <label for="reason">なぜ？（どの仮説を確かめる？）</label>
+    <textarea id="reason" rows="1" maxlength="300" placeholder="例：左右差があれば、肺に空気が入っていない可能性">${esc(S.draft.reason)}</textarea>
+    <button class="btn" ${S.busy ? 'disabled' : ''}>観察する</button>
+  </div></form>`;
+}
+
+function entryHTML(e){
+  if (e.who === 'me') {
+    return `<div class="req"><div class="k">観察</div><p>${esc(e.obs)}</p><div class="k">理由</div><p>${esc(e.reason || '（未記入）')}</p></div>`;
+  }
+  const label = e.type === 'patient' ? esc(S.intro.short) : RES_LABEL[e.type] || '観察の結果';
+  return `<div class="res ${esc(e.type)}"><div class="k">${label}</div><p>${esc(e.text)}</p></div>`;
+}
+
+function feedbackView(){
+  const f = S.final || {};
+  const hy = (S.hyps||[]).map(h => `<p>・${esc(h.text)}（${stageName(h.stage)}／${statusName(h.status)}）</p>`).join('') || '<p>なし</p>';
+  return `<div class="wrap fb">
+    <h1>振り返り</h1>
+    <section class="box"><h2>あなたのまとめ</h2>
+      <p><b>最も危険だと考えた状態：</b>${esc(f.danger)}</p>
+      <p><b>確かめ方：</b>${esc(f.how)}</p>
+      <p><b>報告：</b>${esc(f.report || '（未記入）')}</p>
+    </section>
+    <section class="box"><h2>最後の仮説メモ</h2>${hy}</section>
+    <section class="box"><h2>先生AIからの振り返り</h2><p class="fbtext">${esc(S.feedback)}</p></section>
+    <p class="note">この画面は授業のふり返りで使います。閉じても、同じ端末ならもう一度開けます。</p>
+    <button class="btn quiet full" data-act="reset">この端末の記録を消す</button>
+  </div>`;
+}
+
+function stageName(k){ const s = STAGES.find(x => x[0] === k); return s ? s[1] : ''; }
+function statusName(k){ const s = STATUS.find(x => x[0] === k); return s ? s[1] : ''; }
+
+// ---------- シート ----------
+function showSheet(html){
+  document.getElementById('layer').innerHTML = `<div class="veil" data-act="veil"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+}
+function closeSheet(){ document.getElementById('layer').innerHTML = ''; }
+
+function hypsSheet(){
+  const list = (S.hyps||[]).map((h,i) => `<li class="${h.status==='denied'?'denied':''}">
+      <div class="ht">${esc(h.text)}</div>
+      <div class="hrow">
+        <select data-i="${i}" data-field="stage" aria-label="酸素の旅のどこか">${STAGES.map(s => `<option value="${s[0]}" ${s[0]===h.stage?'selected':''}>${s[1]}</option>`).join('')}</select>
+        <select data-i="${i}" data-field="status" aria-label="確かめた結果">${STATUS.map(s => `<option value="${s[0]}" ${s[0]===h.status?'selected':''}>${s[1]}</option>`).join('')}</select>
+        <button class="del" data-act="delhyp" data-i="${i}">消す</button>
+      </div></li>`).join('');
+  return `<div class="sheet-head"><h2>仮説メモ</h2><button class="x" data-act="close">閉じる</button></div>
+    <p class="hint">田中さんの体で起きている可能性を書き、酸素の旅のどこの問題かを選びます。観察で確かめたら「強まった」「否定した」に変えましょう。</p>
+    <div class="add">
+      <input id="hypText" maxlength="100" placeholder="例：肺に空気が十分入っていない">
+      <div class="seg" id="seg">${STAGES.map(s => `<button type="button" data-stage="${s[0]}" class="${s[0]===newStage?'on':''}">${s[1]}</button>`).join('')}</div>
+      <button class="btn" data-act="addhyp">追加する</button>
+    </div>
+    <ul class="hyps">${list || '<li class="empty">まだ仮説がありません。思いつく可能性を1つ書いてみましょう。</li>'}</ul>`;
+}
+
+function finishSheet(){
+  const d = S.finDraft || {};
+  return `<div class="sheet-head"><h2>報告して終える</h2><button class="x" data-act="close">閉じる</button></div>
+    <p class="hint">ここまでの観察をもとにまとめます。送ると振り返りが届き、観察はできなくなります。</p>
+    <label class="field"><span>最も危険だと考えた状態は？（酸素の旅のどこで、何が起きている？）</span><textarea id="fDanger" maxlength="400">${esc(d.danger)}</textarea></label>
+    <label class="field"><span>それを、どの観察で確かめた・否定した？</span><textarea id="fHow" maxlength="600">${esc(d.how)}</textarea></label>
+    <label class="field"><span>医師やリーダーに、何と報告する？</span><textarea id="fReport" maxlength="600">${esc(d.report)}</textarea></label>
+    <button class="btn full" data-act="dofinish" id="finBtn">送って振り返りを受け取る</button>`;
+}
+
+// ---------- 操作 ----------
+async function doJoin(){
+  const code = document.getElementById('code').value.trim();
+  const grp = document.getElementById('grp').value.trim();
+  const sid = document.getElementById('sid').value.trim();
+  if (!code || !grp || !sid) { toast('3つとも入力してください'); return; }
+  const btn = document.getElementById('joinBtn'); btn.disabled = true; btn.textContent = '確認しています…';
+  try {
+    const d = await api('/api/join', { code, grp, sid });
+    S = { joined:true, code, cls:d.cls, grp, sid, intro:d.intro, history:[], log:[], hyps:[], draft:{obs:'',reason:''} };
+    save(); render(); window.scrollTo(0,0);
+  } catch(e){ toast(e.message); btn.disabled = false; btn.textContent = '演習を始める'; }
+}
+
+async function send(){
+  if (S.busy) return;
+  const obs = S.draft.obs.trim(), reason = S.draft.reason.trim();
+  if (!obs) { toast('観察することを入力してください'); return; }
+  if (!(S.hyps||[]).length) { toast('まず仮説メモに、考えられる可能性を1つ以上書きましょう'); showSheet(hypsSheet()); return; }
+  S.busy = true; S.log.push({ who:'me', obs, reason }); render(); scrollEnd();
+  try {
+    const d = await api('/api/chat', { ...cred(), obs, reason, history:S.history, hyps:S.hyps });
+    S.history.push({ role:'user', content:d.user_content }, { role:'assistant', content:d.assistant_content });
+    S.log.push({ who:'ai', type:d.type, text:d.text });
+    S.draft = { obs:'', reason:'' };
+  } catch(e){ S.log.pop(); toast(e.message); }
+  S.busy = false; save(); render(); scrollEnd();
+}
+
+async function doFinish(){
+  const danger = document.getElementById('fDanger').value.trim();
+  const how = document.getElementById('fHow').value.trim();
+  const report = document.getElementById('fReport').value.trim();
+  if (!danger || !how) { toast('上の2つは必ず書いてください'); return; }
+  const btn = document.getElementById('finBtn'); btn.disabled = true; btn.textContent = '振り返りを書いています（30秒ほど）…';
+  try {
+    const d = await api('/api/finish', { ...cred(), history:S.history, hyps:S.hyps, danger, how, report });
+    S.feedback = d.feedback; S.final = { danger, how, report };
+    save(); closeSheet(); render(); window.scrollTo(0,0);
+  } catch(e){ toast(e.message); btn.disabled = false; btn.textContent = '送って振り返りを受け取る'; }
+}
+
+function syncHyps(){
+  save();
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => { api('/api/state', { ...cred(), hyps:S.hyps }).catch(() => {}); }, 1200);
+}
+function refreshMainKeepScroll(){ const y = window.scrollY; render(); window.scrollTo(0,y); }
+function scrollEnd(){ requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight)); }
+
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.id === 'joinForm') doJoin();
+  if (e.target.id === 'composer') send();
+});
+
+document.addEventListener('input', e => {
+  if (!S.draft) return;
+  if (e.target.id === 'obs') { S.draft.obs = e.target.value; save(); }
+  if (e.target.id === 'reason') { S.draft.reason = e.target.value; save(); }
+  if (['fDanger','fHow','fReport'].includes(e.target.id)) {
+    S.finDraft = S.finDraft || {};
+    S.finDraft[{fDanger:'danger',fHow:'how',fReport:'report'}[e.target.id]] = e.target.value; save();
+  }
+});
+
+document.addEventListener('change', e => {
+  const i = e.target.dataset && e.target.dataset.i;
+  const f = e.target.dataset && e.target.dataset.field;
+  if (i != null && f) {
+    S.hyps[+i][f] = e.target.value;
+    syncHyps(); showSheet(hypsSheet()); refreshMainKeepScroll();
+  }
+});
+
+document.addEventListener('click', e => {
+  const stageBtn = e.target.closest('[data-stage]');
+  if (stageBtn) {
+    newStage = stageBtn.dataset.stage;
+    document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.stage === newStage));
+    return;
+  }
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  if (act === 'veil' && e.target !== el) return;
+  if (act === 'hyps') showSheet(hypsSheet());
+  if (act === 'finish') showSheet(finishSheet());
+  if (act === 'close' || act === 'veil') closeSheet();
+  if (act === 'addhyp') {
+    const inp = document.getElementById('hypText');
+    const text = inp.value.trim();
+    if (!text) { toast('仮説を書いてから追加してください'); return; }
+    S.hyps.push({ text, stage:newStage, status:'checking' });
+    newStage = 'unknown';
+    syncHyps(); showSheet(hypsSheet()); refreshMainKeepScroll();
+  }
+  if (act === 'delhyp') {
+    S.hyps.splice(+el.dataset.i, 1);
+    syncHyps(); showSheet(hypsSheet()); refreshMainKeepScroll();
+  }
+  if (act === 'dofinish') doFinish();
+  if (act === 'reset') {
+    if (confirm('この端末の演習記録を消しますか？（サーバーの記録は残ります）')) {
+      try { localStorage.removeItem(KEY); } catch(err){}
+      S = {}; render();
+    }
+  }
+});
+
+if (S.joined && !S.draft) S.draft = { obs:'', reason:'' };
+S.busy = false;
+render();
+if (S.joined && !S.feedback) scrollEnd();
+</script>
+</body>
+</html>
