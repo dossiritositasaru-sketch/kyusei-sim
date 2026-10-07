@@ -94,6 +94,17 @@ button{cursor:pointer}
 .res.ask_reason p{font-weight:700}
 .res.redirect{background:transparent;border-style:dashed}
 .pending{color:var(--muted);font-size:.92rem;padding:4px 0 16px}
+.q{margin:-10px 0 16px;max-width:92%;border:1.5px dashed var(--warn);border-radius:12px;padding:8px 12px}
+.q .k{font-size:.75rem;color:var(--warn);font-weight:700}
+.q p{margin:0;white-space:pre-wrap;word-break:break-word}
+.abcde{display:flex;gap:6px;padding:2px 0 6px;align-items:center}
+.abcde .lab{font-size:.75rem;color:var(--muted);margin-right:2px}
+.abcde span.c{flex:1;text-align:center;border:1.5px solid var(--line);border-radius:8px;padding:2px 0;font-size:.78rem;line-height:1.3;color:var(--muted)}
+.abcde span.c b{display:block;font-size:.95rem}
+.abcde span.c.on{border-color:var(--ink);background:var(--ink);color:var(--surface)}
+.thread .ai{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:12px;white-space:pre-wrap;word-break:break-word}
+.thread .me{background:var(--soft);border-radius:12px;padding:10px 12px;margin:0 0 12px auto;max-width:90%;white-space:pre-wrap;word-break:break-word}
+.step{font-size:.85rem;color:var(--muted);margin:0 0 12px}
 
 /* 入力欄 */
 .composer{position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);
@@ -185,6 +196,7 @@ function render(){
   const app = document.getElementById('app');
   if (!S.joined) app.innerHTML = joinView();
   else if (S.feedback) app.innerHTML = feedbackView();
+  else if (S.phase === 'debrief') app.innerHTML = debriefView();
   else app.innerHTML = mainView();
 }
 
@@ -213,13 +225,20 @@ function journeyHTML(){
   }).join('') + `</div>`;
 }
 
+const ABCDE = [['A','気道'],['B','呼吸'],['C','循環'],['D','意識'],['E','全身']];
+function abcdeHTML(){
+  const on = String(S.abcde || '');
+  return `<div class="abcde" aria-label="観察した領域"><span class="lab">観察</span>` +
+    ABCDE.map(([k,l]) => `<span class="c ${on.includes(k)?'on':''}"><b>${k}</b>${l}</span>`).join('') + `</div>`;
+}
+
 function mainView(){
   const n = (S.hyps||[]).filter(h => h.status !== 'denied').length;
   return `<header class="top"><div class="wrap">
       <div class="pt"><strong>${esc(S.intro.short)}</strong><span>${esc(S.intro.tag)}</span></div>
       <div class="who">${esc(S.cls || '')}クラス ${esc(S.grp)}班・${esc(S.sid)}番</div>
     </div>
-    <div class="wrap">${journeyHTML()}
+    <div class="wrap">${journeyHTML()}${abcdeHTML()}
       <div class="toolbar">
         <button class="btn quiet" data-act="hyps">仮説メモ（${n}）</button>
         <button class="btn line" data-act="finish">報告して終える</button>
@@ -250,23 +269,40 @@ function entryHTML(e){
     return `<div class="req"><div class="k">観察</div><p>${esc(e.obs)}</p><div class="k">理由</div><p>${esc(e.reason || '（未記入）')}</p></div>`;
   }
   const label = e.type === 'patient' ? esc(S.intro.short) : RES_LABEL[e.type] || '観察の結果';
-  return `<div class="res ${esc(e.type)}"><div class="k">${label}</div><p>${esc(e.text)}</p></div>`;
+  const q = e.question ? `<div class="q"><div class="k">考えてみよう</div><p>${esc(e.question)}</p></div>` : '';
+  return `<div class="res ${esc(e.type)}"><div class="k">${label}</div><p>${esc(e.text)}</p></div>${q}`;
 }
 
 function feedbackView(){
   const f = S.final || {};
   const hy = (S.hyps||[]).map(h => `<p>・${esc(h.text)}（${stageName(h.stage)}／${statusName(h.status)}）</p>`).join('') || '<p>なし</p>';
   return `<div class="wrap fb">
-    <h1>振り返り</h1>
+    <h1>振り返りと答え合わせ</h1>
     <section class="box"><h2>あなたのまとめ</h2>
       <p><b>最も危険だと考えた状態：</b>${esc(f.danger)}</p>
       <p><b>確かめ方：</b>${esc(f.how)}</p>
       <p><b>報告：</b>${esc(f.report || '（未記入）')}</p>
     </section>
     <section class="box"><h2>最後の仮説メモ</h2>${hy}</section>
-    <section class="box"><h2>先生AIからの振り返り</h2><p class="fbtext">${esc(S.feedback)}</p></section>
+    <section class="box"><h2>問いかけとあなたの答え</h2><div class="thread">${threadHTML()}</div></section>
+    <section class="box"><h2>答え合わせ：先生AIからの解説</h2><p class="fbtext">${esc(S.feedback)}</p></section>
     <p class="note">この画面は授業のふり返りで使います。閉じても、同じ端末ならもう一度開けます。</p>
     <button class="btn quiet full" data-act="reset">この端末の記録を消す</button>
+  </div>`;
+}
+
+function threadHTML(){
+  return (S.debrief || []).map(m => `<div class="${m.who === 'me' ? 'me' : 'ai'}">${esc(m.text)}</div>`).join('');
+}
+
+function debriefView(){
+  const answered = (S.debrief || []).filter(m => m.who === 'me').length;
+  return `<div class="wrap fb">
+    <h1>振り返り：考えを深めよう</h1>
+    <p class="step">問いに答えるのは ${answered + 1} 回目／2回。2回答えると、答え合わせの解説が出ます。</p>
+    <div class="thread">${threadHTML()}</div>
+    <label class="field"><span>あなたの答え</span><textarea id="dAnswer" maxlength="800" rows="5">${esc(S.dDraft || '')}</textarea></label>
+    <button class="btn full" data-act="debrief" id="dBtn" ${S.busy ? 'disabled' : ''}>${S.busy ? '考えています…' : '答えを送る'}</button>
   </div>`;
 }
 
@@ -300,11 +336,11 @@ function hypsSheet(){
 function finishSheet(){
   const d = S.finDraft || {};
   return `<div class="sheet-head"><h2>報告して終える</h2><button class="x" data-act="close">閉じる</button></div>
-    <p class="hint">ここまでの観察をもとにまとめます。送ると振り返りが届き、観察はできなくなります。</p>
+    <p class="hint">ここまでの観察をもとにまとめます。送ると先生AIから問いが届き、観察はできなくなります。問いに2回答えると、答え合わせの解説が出ます。</p>
     <label class="field"><span>最も危険だと考えた状態は？（酸素の旅のどこで、何が起きている？）</span><textarea id="fDanger" maxlength="400">${esc(d.danger)}</textarea></label>
     <label class="field"><span>それを、どの観察で確かめた・否定した？</span><textarea id="fHow" maxlength="600">${esc(d.how)}</textarea></label>
     <label class="field"><span>医師やリーダーに、何と報告する？</span><textarea id="fReport" maxlength="600">${esc(d.report)}</textarea></label>
-    <button class="btn full" data-act="dofinish" id="finBtn">送って振り返りを受け取る</button>`;
+    <button class="btn full" data-act="dofinish" id="finBtn">送って振り返りへ進む</button>`;
 }
 
 // ---------- 操作 ----------
@@ -330,7 +366,8 @@ async function send(){
   try {
     const d = await api('/api/chat', { ...cred(), obs, reason, history:S.history, hyps:S.hyps });
     S.history.push({ role:'user', content:d.user_content }, { role:'assistant', content:d.assistant_content });
-    S.log.push({ who:'ai', type:d.type, text:d.text });
+    S.log.push({ who:'ai', type:d.type, text:d.text, question:d.question || '' });
+    if (d.abcde != null) S.abcde = d.abcde;
     S.draft = { obs:'', reason:'' };
   } catch(e){ S.log.pop(); toast(e.message); }
   S.busy = false; save(); render(); scrollEnd();
@@ -341,12 +378,27 @@ async function doFinish(){
   const how = document.getElementById('fHow').value.trim();
   const report = document.getElementById('fReport').value.trim();
   if (!danger || !how) { toast('上の2つは必ず書いてください'); return; }
-  const btn = document.getElementById('finBtn'); btn.disabled = true; btn.textContent = '振り返りを書いています（30秒ほど）…';
+  const btn = document.getElementById('finBtn'); btn.disabled = true; btn.textContent = '問いを考えています…';
   try {
     const d = await api('/api/finish', { ...cred(), history:S.history, hyps:S.hyps, danger, how, report });
-    S.feedback = d.feedback; S.final = { danger, how, report };
+    S.final = { danger, how, report }; S.phase = 'debrief'; S.debrief = [{ who:'ai', text:d.question }];
     save(); closeSheet(); render(); window.scrollTo(0,0);
-  } catch(e){ toast(e.message); btn.disabled = false; btn.textContent = '送って振り返りを受け取る'; }
+  } catch(e){ toast(e.message); btn.disabled = false; btn.textContent = '送って振り返りへ進む'; }
+}
+
+async function sendDebrief(){
+  if (S.busy) return;
+  const answer = (document.getElementById('dAnswer').value || '').trim();
+  if (!answer) { toast('答えを書いてから送ってください'); return; }
+  S.busy = true; S.dDraft = answer; render();
+  try {
+    const d = await api('/api/debrief', { ...cred(), history:S.history, hyps:S.hyps, ...S.final, debrief:S.debrief, answer });
+    S.debrief.push({ who:'me', text:answer });
+    S.dDraft = '';
+    if (d.final) { S.feedback = d.feedback; S.phase = 'done'; }
+    else S.debrief.push({ who:'ai', text:d.question });
+  } catch(e){ toast(e.message); }
+  S.busy = false; save(); render(); window.scrollTo(0, document.body.scrollHeight);
 }
 
 function syncHyps(){
@@ -367,6 +419,7 @@ document.addEventListener('input', e => {
   if (!S.draft) return;
   if (e.target.id === 'obs') { S.draft.obs = e.target.value; save(); }
   if (e.target.id === 'reason') { S.draft.reason = e.target.value; save(); }
+  if (e.target.id === 'dAnswer') { S.dDraft = e.target.value; save(); }
   if (['fDanger','fHow','fReport'].includes(e.target.id)) {
     S.finDraft = S.finDraft || {};
     S.finDraft[{fDanger:'danger',fHow:'how',fReport:'report'}[e.target.id]] = e.target.value; save();
@@ -409,6 +462,7 @@ document.addEventListener('click', e => {
     syncHyps(); showSheet(hypsSheet()); refreshMainKeepScroll();
   }
   if (act === 'dofinish') doFinish();
+  if (act === 'debrief') sendDebrief();
   if (act === 'reset') {
     if (confirm('この端末の演習記録を消しますか？（サーバーの記録は残ります）')) {
       try { localStorage.removeItem(KEY); } catch(err){}
