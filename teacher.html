@@ -77,6 +77,9 @@ header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);bor
 .chip.warn{background:var(--warnbg);color:var(--warn)}
 .chip.done{background:var(--okbg);color:var(--ok)}
 .l2{color:var(--muted);font-size:.8rem;margin-top:2px}
+.ab{display:inline-flex;gap:2px;margin-left:auto}
+.ab i{font-style:normal;font-size:.7rem;font-weight:700;width:18px;height:18px;line-height:16px;text-align:center;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.ab i.on{background:var(--ink);border-color:var(--ink);color:var(--surface)}
 .hl{margin:8px 0 2px;padding:0;list-style:none;font-size:.85rem}
 .hl li{padding:2px 0}
 .hl .no{text-decoration:line-through;color:var(--muted)}
@@ -120,6 +123,10 @@ function stop(){ if (timer) clearInterval(timer); timer = null; }
 function flags(st, now){
   if (st.finished) return [{ k:'done', t:'終了' }];
   const f = [];
+  if (st.phase === 'debrief') f.push({ k:'warn', t:'振り返り中' });
+  const ab = String(st.abcde || '');
+  const missing = 'ABCDE'.split('').filter(c => !ab.includes(c));
+  if (st.phase !== 'debrief' && st.turns >= 5 && missing.length) f.push({ k:'warn', t:'未観察 ' + missing.join('・') });
   const idle = (now - st.last_ts) / 1000;
   const hy = st.hyps || [];
   const active = hy.filter(h => h.status !== 'denied');
@@ -167,7 +174,7 @@ function render(){
         const hy = s.hyps || [];
         const key = s.sid;
         return `<details class="st ${s.fl.some(f=>f.k==='alert') ? 'need' : ''}" data-sid="${esc(key)}" ${open.has(key) ? 'open' : ''}>
-          <summary><div class="l1"><span class="sid">${esc(s.sid)}番</span>${s.fl.map(f => `<span class="chip ${f.k}">${esc(f.t)}</span>`).join('')}</div>
+          <summary><div class="l1"><span class="sid">${esc(s.sid)}番</span>${s.fl.map(f => `<span class="chip ${f.k}">${esc(f.t)}</span>`).join('')}<span class="ab">${'ABCDE'.split('').map(c => `<i class="${String(s.abcde||'').includes(c)?'on':''}">${c}</i>`).join('')}</span></div>
           <div class="l2">観察${s.turns}・仮説${hy.filter(h=>h.status!=='denied').length}（否定${hy.filter(h=>h.status==='denied').length}）・問い返し${s.asks}・最終操作 ${ago(now - s.last_ts)}</div></summary>
           <ul class="hl">${hy.map(h => `<li class="${h.status==='denied'?'no':''}">${esc(h.text)} <small>${STAGES[h.stage]||''}／${STATUS[h.status]||''}</small></li>`).join('') || '<li><small>仮説なし</small></li>'}</ul>
         </details>`;
@@ -184,7 +191,7 @@ function render(){
       <div class="journey">
         ${jc('intake','①取り込む','')}${jc('transfer','②渡す','')}${jc('carry','③運ぶ','b')}${jc('use','④使う','b')}${jc('unknown','まだわからない','m')}${jc('denied','否定した','m')}
       </div>
-      <p class="jnote">クラス全体で今メモされている仮説の数。②渡す を考えている学生は ${withStage('transfer')}人、③運ぶ は ${withStage('carry')}人。</p>
+      <p class="jnote">観察した領域の人数：${'ABCDE'.split('').map(c => c + ' ' + sts.filter(x => String(x.abcde||'').includes(c)).length + '人').join('　')}<br>クラス全体で今メモされている仮説の数。②渡す を考えている学生は ${withStage('transfer')}人、③運ぶ は ${withStage('carry')}人。</p>
       ${gHTML || '<p class="empty">まだ参加者がいません。学生が「演習を始める」を押すと、ここに表示されます。</p>'}
     </main>`;
 }
